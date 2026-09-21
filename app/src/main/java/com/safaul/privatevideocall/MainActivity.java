@@ -185,9 +185,13 @@ public class MainActivity extends ComponentActivity {
                 30
         );
 
-        videoSource
-                .getSource()
-                .addSink(localView);
+org.webrtc.VideoTrack localVideoTrack =
+        peerConnectionFactory.createVideoTrack(
+                "local_video",
+                videoSource
+        );
+
+localVideoTrack.addSink(localView);
     }
 
     @Override
