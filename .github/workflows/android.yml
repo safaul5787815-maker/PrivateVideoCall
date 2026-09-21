@@ -34,6 +34,12 @@ jobs:
             "platforms;android-35" \
             "build-tools;35.0.0"
 
+      - name: Create Firebase config
+        env:
+          FIREBASE_GOOGLE_SERVICES_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
+        run: |
+          printf '%s' "$FIREBASE_GOOGLE_SERVICES_JSON" > app/google-services.json
+
       - name: Build APK
         run: ./gradlew --no-daemon assembleDebug
 
