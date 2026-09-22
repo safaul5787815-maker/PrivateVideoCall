@@ -11,6 +11,11 @@
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
 
+<activity
+    android:name=".CallActivity"
+    android:screenOrientation="portrait"
+    android:exported="false" />
+
         <activity
             android:name=".MainActivity"
             android:screenOrientation="portrait"

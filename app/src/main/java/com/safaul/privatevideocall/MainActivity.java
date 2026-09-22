@@ -50,7 +50,11 @@ public class MainActivity extends ComponentActivity {
 
         setupFirebaseLogin();
 
-        startCallButton.setOnClickListener(v -> claimPairingCode());
+startCallButton.setOnClickListener(v -> {
+
+    claimPairingCode();
+
+});
 
         endCallButton.setOnClickListener(v -> {
             endCallButton.setVisibility(View.GONE);
@@ -286,7 +290,13 @@ public class MainActivity extends ComponentActivity {
                             "Pairing successful ✓",
                             Toast.LENGTH_LONG
                     ).show();
+                    android.content.Intent intent =
+        new android.content.Intent(
+                MainActivity.this,
+                CallActivity.class
+        );
 
+startActivity(intent);
                 })
                 .addOnFailureListener(e -> {
 
