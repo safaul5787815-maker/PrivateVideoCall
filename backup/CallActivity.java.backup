@@ -30,8 +30,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CallActivity extends ComponentActivity {
-private String pairId;
-private boolean isCaller;
 
     private static final int PERMISSION_REQUEST_CODE = 1001;
 
@@ -63,10 +61,6 @@ private boolean isCaller;
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_call);
-android.content.Intent intent = getIntent();
-
-pairId = intent.getStringExtra("pairId");
-isCaller = intent.getBooleanExtra("isCaller", false);
 
         localView = findViewById(R.id.localView);
         remoteView = findViewById(R.id.remoteView);

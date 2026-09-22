@@ -290,13 +290,26 @@ startCallButton.setOnClickListener(v -> {
                             "Pairing successful ✓",
                             Toast.LENGTH_LONG
                     ).show();
-                    android.content.Intent intent =
+
+String pairId;
+
+if (myUid.compareTo(ownerUid) < 0) {
+    pairId = myUid + "_" + ownerUid;
+} else {
+    pairId = ownerUid + "_" + myUid;
+}
+
+android.content.Intent intent =
         new android.content.Intent(
                 MainActivity.this,
                 CallActivity.class
         );
 
+intent.putExtra("pairId", pairId);
+intent.putExtra("isCaller", false);
+
 startActivity(intent);
+
                 })
                 .addOnFailureListener(e -> {
 
