@@ -1,6 +1,7 @@
 package com.safaul.privatevideocall;
 
 import android.os.Bundle;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -10,6 +11,7 @@ import androidx.activity.ComponentActivity;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.security.SecureRandom;
@@ -27,6 +29,7 @@ public class MainActivity extends ComponentActivity {
     private Button endCallButton;
 
     private String myPairingCode;
+    private String myUid;
 
     private static final String CHARACTERS =
             "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -47,45 +50,15 @@ public class MainActivity extends ComponentActivity {
 
         setupFirebaseLogin();
 
-        startCallButton.setOnClickListener(v -> {
-
-            String partnerCode =
-                    partnerCallId.getText()
-                            .toString()
-                            .trim()
-                            .toUpperCase();
-
-            if (partnerCode.length() != 8) {
-
-                Toast.makeText(
-                        this,
-                        "8-character Pairing Code enter karo",
-                        Toast.LENGTH_SHORT
-                ).show();
-
-                return;
-            }
-
-            Toast.makeText(
-                    this,
-                    "Pairing next step mein complete hoga",
-                    Toast.LENGTH_SHORT
-            ).show();
-        });
+        startCallButton.setOnClickListener(v -> claimPairingCode());
 
         endCallButton.setOnClickListener(v -> {
-
-            endCallButton.setVisibility(
-                    android.view.View.GONE
-            );
-
-            startCallButton.setVisibility(
-                    android.view.View.VISIBLE
-            );
+            endCallButton.setVisibility(View.GONE);
+            startCallButton.setVisibility(View.VISIBLE);
 
             Toast.makeText(
                     this,
-                    "Call ended",
+                    "Pairing cancelled",
                     Toast.LENGTH_SHORT
             ).show();
         });
@@ -93,57 +66,47 @@ public class MainActivity extends ComponentActivity {
 
     private void setupFirebaseLogin() {
 
-        FirebaseUser currentUser =
-                auth.getCurrentUser();
+        FirebaseUser currentUser = auth.getCurrentUser();
 
         if (currentUser != null) {
-
-            createPairingCode(currentUser);
-
-        } else {
-
-            auth.signInAnonymously()
-                    .addOnCompleteListener(this, task -> {
-
-                        if (task.isSuccessful()) {
-
-                            FirebaseUser user =
-                                    auth.getCurrentUser();
-
-                            if (user != null) {
-                                createPairingCode(user);
-                            }
-
-                        } else {
-
-                            Toast.makeText(
-                                    this,
-                                    "Firebase login failed",
-                                    Toast.LENGTH_LONG
-                            ).show();
-                        }
-                    });
+            myUid = currentUser.getUid();
+            createOrLoadPairingCode();
+            return;
         }
+
+        auth.signInAnonymously()
+                .addOnCompleteListener(this, task -> {
+
+                    if (task.isSuccessful()) {
+
+                        FirebaseUser user = auth.getCurrentUser();
+
+                        if (user != null) {
+                            myUid = user.getUid();
+                            createOrLoadPairingCode();
+                        }
+
+                    } else {
+
+                        Toast.makeText(
+                                this,
+                                "Firebase login failed",
+                                Toast.LENGTH_LONG
+                        ).show();
+                    }
+                });
     }
 
-    private void createPairingCode(FirebaseUser user) {
+    private void createOrLoadPairingCode() {
 
         myPairingCode = generatePairingCode();
 
         callIdValue.setText(myPairingCode);
 
-        Map<String, Object> data =
-                new HashMap<>();
+        Map<String, Object> data = new HashMap<>();
 
-        data.put(
-                "ownerUid",
-                user.getUid()
-        );
-
-        data.put(
-                "createdAt",
-                System.currentTimeMillis()
-        );
+        data.put("ownerUid", myUid);
+        data.put("createdAt", System.currentTimeMillis());
 
         firestore
                 .collection("pairingCodes")
@@ -153,7 +116,7 @@ public class MainActivity extends ComponentActivity {
 
                     Toast.makeText(
                             this,
-                            "Your Pairing Code is ready",
+                            "Pairing Code ready",
                             Toast.LENGTH_SHORT
                     ).show();
 
@@ -163,6 +126,175 @@ public class MainActivity extends ComponentActivity {
                     Toast.makeText(
                             this,
                             "Pairing code save failed",
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+    }
+
+    private void claimPairingCode() {
+
+        String partnerCode =
+                partnerCallId.getText()
+                        .toString()
+                        .trim()
+                        .toUpperCase();
+
+        if (partnerCode.length() != 8) {
+
+            Toast.makeText(
+                    this,
+                    "8-character Pairing Code enter karo",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        if (partnerCode.equals(myPairingCode)) {
+
+            Toast.makeText(
+                    this,
+                    "Apna khud ka code use nahi kar sakte",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        startCallButton.setEnabled(false);
+
+        firestore
+                .collection("pairingCodes")
+                .document(partnerCode)
+                .get()
+                .addOnSuccessListener(document -> {
+
+                    if (!document.exists()) {
+
+                        startCallButton.setEnabled(true);
+
+                        Toast.makeText(
+                                this,
+                                "Pairing Code nahi mila",
+                                Toast.LENGTH_LONG
+                        ).show();
+
+                        return;
+                    }
+
+                    String ownerUid =
+                            document.getString("ownerUid");
+
+                    if (ownerUid == null ||
+                            ownerUid.equals(myUid)) {
+
+                        startCallButton.setEnabled(true);
+
+                        Toast.makeText(
+                                this,
+                                "Invalid Pairing Code",
+                                Toast.LENGTH_LONG
+                        ).show();
+
+                        return;
+                    }
+
+                    Map<String, Object> update =
+                            new HashMap<>();
+
+                    update.put(
+                            "partnerUid",
+                            myUid
+                    );
+
+                    update.put(
+                            "pairedAt",
+                            System.currentTimeMillis()
+                    );
+
+                    firestore
+                            .collection("pairingCodes")
+                            .document(partnerCode)
+                            .update(update)
+                            .addOnSuccessListener(unused -> {
+
+                                createPairDocument(
+                                        partnerCode,
+                                        ownerUid
+                                );
+
+                            })
+                            .addOnFailureListener(e -> {
+
+                                startCallButton.setEnabled(true);
+
+                                Toast.makeText(
+                                        this,
+                                        "Pairing failed",
+                                        Toast.LENGTH_LONG
+                                ).show();
+                            });
+                })
+                .addOnFailureListener(e -> {
+
+                    startCallButton.setEnabled(true);
+
+                    Toast.makeText(
+                            this,
+                            "Code check failed",
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+    }
+
+    private void createPairDocument(
+            String pairingCode,
+            String ownerUid
+    ) {
+
+        String pairId;
+
+        if (myUid.compareTo(ownerUid) < 0) {
+            pairId = myUid + "_" + ownerUid;
+        } else {
+            pairId = ownerUid + "_" + myUid;
+        }
+
+        Map<String, Object> pairData =
+                new HashMap<>();
+
+        pairData.put("ownerUid", ownerUid);
+        pairData.put("partnerUid", myUid);
+        pairData.put("pairingCode", pairingCode);
+        pairData.put(
+                "createdAt",
+                System.currentTimeMillis()
+        );
+
+        firestore
+                .collection("pairs")
+                .document(pairId)
+                .set(pairData)
+                .addOnSuccessListener(unused -> {
+
+                    startCallButton.setEnabled(true);
+
+                    startCallButton.setText("Paired ✓");
+
+                    Toast.makeText(
+                            this,
+                            "Pairing successful ✓",
+                            Toast.LENGTH_LONG
+                    ).show();
+
+                })
+                .addOnFailureListener(e -> {
+
+                    startCallButton.setEnabled(true);
+
+                    Toast.makeText(
+                            this,
+                            "Pair document failed",
                             Toast.LENGTH_LONG
                     ).show();
                 });
@@ -189,11 +321,5 @@ public class MainActivity extends ComponentActivity {
         }
 
         return code.toString();
-    }
-
-    @Override
-    protected void onDestroy() {
-
-        super.onDestroy();
     }
 }
