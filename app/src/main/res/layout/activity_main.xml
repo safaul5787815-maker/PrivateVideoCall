@@ -1,54 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<FrameLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center">
 
-    <!-- Remote video -->
-    <org.webrtc.SurfaceViewRenderer
-        android:id="@+id/remoteView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Private Video Call"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
 
-    <!-- Local camera preview -->
-    <org.webrtc.SurfaceViewRenderer
-        android:id="@+id/localView"
-        android:layout_width="120dp"
-        android:layout_height="170dp"
-        android:layout_gravity="top|end"
-        android:layout_margin="16dp" />
+    <TextView
+        android:id="@+id/myCallIdText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Your Call ID"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="8dp"/>
 
-    <!-- Call controls -->
-    <LinearLayout
+    <TextView
+        android:id="@+id/callIdValue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="--------"
+        android:textSize="24sp"
+        android:letterSpacing="0.15"
+        android:layout_marginBottom="24dp"/>
+
+    <EditText
+        android:id="@+id/partnerCallId"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
+        android:hint="Enter wife's Call ID"
+        android:inputType="text"
+        android:maxLength="8"
         android:gravity="center"
-        android:orientation="horizontal"
-        android:padding="24dp">
+        android:layout_marginBottom="16dp"/>
 
-        <Button
-            android:id="@+id/muteButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Mute" />
+    <Button
+        android:id="@+id/startCallButton"
+        android:layout_width="220dp"
+        android:layout_height="wrap_content"
+        android:text="Start Video Call"/>
 
-        <Button
-            android:id="@+id/endCallButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:text="End Call" />
+    <Button
+        android:id="@+id/endCallButton"
+        android:layout_width="220dp"
+        android:layout_height="wrap_content"
+        android:text="End Call"
+        android:visibility="gone"
+        android:layout_marginTop="12dp"/>
 
-        <Button
-            android:id="@+id/switchCameraButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:text="Flip" />
-
-    </LinearLayout>
-
-</FrameLayout>
+</LinearLayout>

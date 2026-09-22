@@ -1,34 +1,25 @@
 package com.safaul.privatevideocall;
 
-import android.Manifest;
-import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.text.InputFilter;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.ComponentActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 
-import org.webrtc.Camera2Enumerator;
-import org.webrtc.CameraEnumerator;
-import org.webrtc.EglBase;
-import org.webrtc.PeerConnectionFactory;
-import org.webrtc.SurfaceTextureHelper;
-import org.webrtc.SurfaceViewRenderer;
-import org.webrtc.VideoCapturer;
-import org.webrtc.VideoSource;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 
 public class MainActivity extends ComponentActivity {
 
-    private static final int PERMISSION_REQUEST = 100;
+    private FirebaseAuth auth;
 
-    private SurfaceViewRenderer localView;
-
-    private PeerConnectionFactory peerConnectionFactory;
-    private VideoCapturer videoCapturer;
-    private SurfaceTextureHelper surfaceTextureHelper;
-    private VideoSource videoSource;
-    private EglBase eglBase;
+    private TextView callIdValue;
+    private EditText partnerCallId;
+    private Button startCallButton;
+    private Button endCallButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,202 +27,114 @@ public class MainActivity extends ComponentActivity {
 
         setContentView(R.layout.activity_main);
 
-        localView = findViewById(R.id.localView);
+        callIdValue = findViewById(R.id.callIdValue);
+        partnerCallId = findViewById(R.id.partnerCallId);
+        startCallButton = findViewById(R.id.startCallButton);
+        endCallButton = findViewById(R.id.endCallButton);
 
-        requestCallPermissions();
-    }
-
-    private void requestCallPermissions() {
-
-        String[] permissions = {
-                Manifest.permission.CAMERA,
-                Manifest.permission.RECORD_AUDIO
-        };
-
-        boolean cameraGranted =
-                ContextCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.CAMERA
-                ) == PackageManager.PERMISSION_GRANTED;
-
-        boolean microphoneGranted =
-                ContextCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.RECORD_AUDIO
-                ) == PackageManager.PERMISSION_GRANTED;
-
-        if (!cameraGranted || !microphoneGranted) {
-
-            ActivityCompat.requestPermissions(
-                    this,
-                    permissions,
-                    PERMISSION_REQUEST
-            );
-
-        } else {
-            startCamera();
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(
-            int requestCode,
-            String[] permissions,
-            int[] grantResults) {
-
-        super.onRequestPermissionsResult(
-                requestCode,
-                permissions,
-                grantResults
+        partnerCallId.setFilters(
+                new InputFilter[]{
+                        new InputFilter.AllCaps()
+                }
         );
 
-        if (requestCode == PERMISSION_REQUEST) {
+        auth = FirebaseAuth.getInstance();
 
-            if (grantResults.length >= 2
-                    && grantResults[0] == PackageManager.PERMISSION_GRANTED
-                    && grantResults[1] == PackageManager.PERMISSION_GRANTED) {
+        setupFirebaseLogin();
+
+        startCallButton.setOnClickListener(v -> {
+
+            String partnerId =
+                    partnerCallId.getText()
+                            .toString()
+                            .trim();
+
+            if (partnerId.isEmpty()) {
 
                 Toast.makeText(
                         this,
-                        "Camera & Microphone ready",
+                        "Wife ka Call ID enter karo",
                         Toast.LENGTH_SHORT
                 ).show();
 
-                startCamera();
-
-            } else {
-
-                Toast.makeText(
-                        this,
-                        "Camera and microphone permission required",
-                        Toast.LENGTH_LONG
-                ).show();
+                return;
             }
-        }
-    }
-
-    private void startCamera() {
-
-        PeerConnectionFactory.initialize(
-                PeerConnectionFactory.InitializationOptions
-                        .builder(this)
-                        .createInitializationOptions()
-        );
-
-        peerConnectionFactory =
-                PeerConnectionFactory
-                        .builder()
-                        .createPeerConnectionFactory();
-
-        eglBase = EglBase.create();
-
-        localView.init(
-                eglBase.getEglBaseContext(),
-                null
-        );
-
-        localView.setMirror(true);
-
-        CameraEnumerator enumerator =
-                new Camera2Enumerator(this);
-
-        String[] deviceNames =
-                enumerator.getDeviceNames();
-
-        for (String deviceName : deviceNames) {
-
-            if (enumerator.isFrontFacing(deviceName)) {
-
-                videoCapturer =
-                        enumerator.createCapturer(
-                                deviceName,
-                                null
-                        );
-
-                break;
-            }
-        }
-
-        if (videoCapturer == null) {
 
             Toast.makeText(
                     this,
-                    "Front camera not found",
-                    Toast.LENGTH_LONG
+                    "Calling system next step mein connect hoga",
+                    Toast.LENGTH_SHORT
+            ).show();
+        });
+
+        endCallButton.setOnClickListener(v -> {
+
+            Toast.makeText(
+                    this,
+                    "Call ended",
+                    Toast.LENGTH_SHORT
             ).show();
 
-            return;
-        }
+            endCallButton.setVisibility(
+                    android.view.View.GONE
+            );
 
-        surfaceTextureHelper =
-                SurfaceTextureHelper.create(
-                        "CaptureThread",
-                        eglBase.getEglBaseContext()
-                );
-
-        videoSource =
-                peerConnectionFactory
-                        .createVideoSource(false);
-
-        videoCapturer.initialize(
-                surfaceTextureHelper,
-                this,
-                videoSource.getCapturerObserver()
-        );
-
-        videoCapturer.startCapture(
-                1280,
-                720,
-                30
-        );
-
-org.webrtc.VideoTrack localVideoTrack =
-        peerConnectionFactory.createVideoTrack(
-                "local_video",
-                videoSource
-        );
-
-localVideoTrack.addSink(localView);
+            startCallButton.setVisibility(
+                    android.view.View.VISIBLE
+            );
+        });
     }
 
-    @Override
-    protected void onDestroy() {
+    private void setupFirebaseLogin() {
 
-        try {
+        FirebaseUser currentUser =
+                auth.getCurrentUser();
 
-            if (videoCapturer != null) {
-                videoCapturer.stopCapture();
-                videoCapturer.dispose();
-                videoCapturer = null;
-            }
+        if (currentUser != null) {
 
-        } catch (Exception ignored) {
+            showCallId(currentUser);
+
+        } else {
+
+            auth.signInAnonymously()
+                    .addOnCompleteListener(this, task -> {
+
+                        if (task.isSuccessful()) {
+
+                            FirebaseUser user =
+                                    auth.getCurrentUser();
+
+                            if (user != null) {
+                                showCallId(user);
+                            }
+
+                        } else {
+
+                            Toast.makeText(
+                                    this,
+                                    "Firebase login failed",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
+                    });
         }
+    }
 
-        if (surfaceTextureHelper != null) {
-            surfaceTextureHelper.dispose();
-            surfaceTextureHelper = null;
-        }
+    private void showCallId(FirebaseUser user) {
 
-        if (videoSource != null) {
-            videoSource.dispose();
-            videoSource = null;
-        }
+        String uid = user.getUid();
 
-        if (localView != null) {
-            localView.release();
-        }
+        /*
+         * Temporary display ID.
+         * Actual secure pairing will be added
+         * with Firestore in the next step.
+         */
+        String callId =
+                uid.substring(
+                        0,
+                        Math.min(8, uid.length())
+                ).toUpperCase();
 
-        if (peerConnectionFactory != null) {
-            peerConnectionFactory.dispose();
-            peerConnectionFactory = null;
-        }
-
-        if (eglBase != null) {
-            eglBase.release();
-            eglBase = null;
-        }
-
-        super.onDestroy();
+        callIdValue.setText(callId);
     }
 }
