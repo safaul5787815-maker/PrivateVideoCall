@@ -291,13 +291,6 @@ startCallButton.setOnClickListener(v -> {
                             Toast.LENGTH_LONG
                     ).show();
 
-String pairId;
-
-if (myUid.compareTo(ownerUid) < 0) {
-    pairId = myUid + "_" + ownerUid;
-} else {
-    pairId = ownerUid + "_" + myUid;
-}
 
 android.content.Intent intent =
         new android.content.Intent(
