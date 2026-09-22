@@ -1,6 +1,7 @@
 package com.safaul.privatevideocall;
 
 import android.os.Bundle;
+import android.text.InputFilter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -10,26 +11,15 @@ import androidx.activity.ComponentActivity;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.FirebaseFirestore;
-
-import java.security.SecureRandom;
-import java.util.HashMap;
-import java.util.Map;
 
 public class MainActivity extends ComponentActivity {
 
     private FirebaseAuth auth;
-    private FirebaseFirestore firestore;
 
     private TextView callIdValue;
     private EditText partnerCallId;
     private Button startCallButton;
     private Button endCallButton;
-
-    private String myPairingCode;
-
-    private static final String CHARACTERS =
-            "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,24 +32,28 @@ public class MainActivity extends ComponentActivity {
         startCallButton = findViewById(R.id.startCallButton);
         endCallButton = findViewById(R.id.endCallButton);
 
+        partnerCallId.setFilters(
+                new InputFilter[]{
+                        new InputFilter.AllCaps()
+                }
+        );
+
         auth = FirebaseAuth.getInstance();
-        firestore = FirebaseFirestore.getInstance();
 
         setupFirebaseLogin();
 
         startCallButton.setOnClickListener(v -> {
 
-            String partnerCode =
+            String partnerId =
                     partnerCallId.getText()
                             .toString()
-                            .trim()
-                            .toUpperCase();
+                            .trim();
 
-            if (partnerCode.length() != 8) {
+            if (partnerId.isEmpty()) {
 
                 Toast.makeText(
                         this,
-                        "8-character Pairing Code enter karo",
+                        "Wife ka Call ID enter karo",
                         Toast.LENGTH_SHORT
                 ).show();
 
@@ -68,12 +62,18 @@ public class MainActivity extends ComponentActivity {
 
             Toast.makeText(
                     this,
-                    "Pairing next step mein complete hoga",
+                    "Calling system next step mein connect hoga",
                     Toast.LENGTH_SHORT
             ).show();
         });
 
         endCallButton.setOnClickListener(v -> {
+
+            Toast.makeText(
+                    this,
+                    "Call ended",
+                    Toast.LENGTH_SHORT
+            ).show();
 
             endCallButton.setVisibility(
                     android.view.View.GONE
@@ -82,12 +82,6 @@ public class MainActivity extends ComponentActivity {
             startCallButton.setVisibility(
                     android.view.View.VISIBLE
             );
-
-            Toast.makeText(
-                    this,
-                    "Call ended",
-                    Toast.LENGTH_SHORT
-            ).show();
         });
     }
 
@@ -98,7 +92,7 @@ public class MainActivity extends ComponentActivity {
 
         if (currentUser != null) {
 
-            createPairingCode(currentUser);
+            showCallId(currentUser);
 
         } else {
 
@@ -111,7 +105,7 @@ public class MainActivity extends ComponentActivity {
                                     auth.getCurrentUser();
 
                             if (user != null) {
-                                createPairingCode(user);
+                                showCallId(user);
                             }
 
                         } else {
@@ -126,74 +120,21 @@ public class MainActivity extends ComponentActivity {
         }
     }
 
-    private void createPairingCode(FirebaseUser user) {
+    private void showCallId(FirebaseUser user) {
 
-        myPairingCode = generatePairingCode();
+        String uid = user.getUid();
 
-        callIdValue.setText(myPairingCode);
+        /*
+         * Temporary display ID.
+         * Actual secure pairing will be added
+         * with Firestore in the next step.
+         */
+        String callId =
+                uid.substring(
+                        0,
+                        Math.min(8, uid.length())
+                ).toUpperCase();
 
-        Map<String, Object> data =
-                new HashMap<>();
-
-        data.put(
-                "ownerUid",
-                user.getUid()
-        );
-
-        data.put(
-                "createdAt",
-                System.currentTimeMillis()
-        );
-
-        firestore
-                .collection("pairingCodes")
-                .document(myPairingCode)
-                .set(data)
-                .addOnSuccessListener(unused -> {
-
-                    Toast.makeText(
-                            this,
-                            "Your Pairing Code is ready",
-                            Toast.LENGTH_SHORT
-                    ).show();
-
-                })
-                .addOnFailureListener(e -> {
-
-                    Toast.makeText(
-                            this,
-                            "Pairing code save failed",
-                            Toast.LENGTH_LONG
-                    ).show();
-                });
-    }
-
-    private String generatePairingCode() {
-
-        SecureRandom random =
-                new SecureRandom();
-
-        StringBuilder code =
-                new StringBuilder();
-
-        for (int i = 0; i < 8; i++) {
-
-            int index =
-                    random.nextInt(
-                            CHARACTERS.length()
-                    );
-
-            code.append(
-                    CHARACTERS.charAt(index)
-            );
-        }
-
-        return code.toString();
-    }
-
-    @Override
-    protected void onDestroy() {
-
-        super.onDestroy();
+        callIdValue.setText(callId);
     }
 }
