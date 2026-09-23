@@ -29,10 +29,23 @@ import org.webrtc.VideoTrack;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+
+import java.util.HashMap;
+import java.util.Map;
+
 public class CallActivity extends ComponentActivity {
 private String pairId;
 private boolean isCaller;
+private FirebaseFirestore firestore;
+private ListenerRegistration callListener;
+private ListenerRegistration callerCandidatesListener;
+private ListenerRegistration calleeCandidatesListener;
 
+private String callId;
+private boolean isCallStarted = false;
     private static final int PERMISSION_REQUEST_CODE = 1001;
 
     private SurfaceViewRenderer localView;
@@ -141,6 +154,9 @@ isCaller = intent.getBooleanExtra("isCaller", false);
 
     private void startWebRTC() {
 
+firestore = FirebaseFirestore.getInstance();
+callId = pairId;
+
         PeerConnectionFactory.initialize(
                 PeerConnectionFactory.InitializationOptions
                         .builder(this)
@@ -175,7 +191,15 @@ isCaller = intent.getBooleanExtra("isCaller", false);
 
         createCamera();
 
-        createPeerConnection();
+createPeerConnection();
+
+if (isCaller) {
+    createOffer();
+    listenForAnswer();
+} else {
+    listenForOffer();
+}
+
     }
 
     private void createAudio() {
@@ -323,10 +347,31 @@ isCaller = intent.getBooleanExtra("isCaller", false);
                                             PeerConnection.IceGatheringState state) {
                                     }
 
-                                    @Override
-                                    public void onIceCandidate(
-                                            org.webrtc.IceCandidate candidate) {
-                                    }
+@Override
+public void onIceCandidate(
+        org.webrtc.IceCandidate candidate) {
+
+    if (firestore == null || callId == null) {
+        return;
+    }
+
+    Map<String, Object> data = new HashMap<>();
+
+    data.put("sdpMid", candidate.sdpMid);
+    data.put("sdpMLineIndex", candidate.sdpMLineIndex);
+    data.put("candidate", candidate.sdp);
+
+    String collection =
+            isCaller
+                    ? "callerCandidates"
+                    : "calleeCandidates";
+
+    firestore
+            .collection("calls")
+            .document(callId)
+            .collection(collection)
+            .add(data);
+}
 
                                     @Override
                                     public void onIceCandidatesRemoved(
@@ -352,11 +397,24 @@ isCaller = intent.getBooleanExtra("isCaller", false);
                                     public void onRenegotiationNeeded() {
                                     }
 
-                                    @Override
-                                    public void onAddTrack(
-                                            org.webrtc.RtpReceiver receiver,
-                                            org.webrtc.MediaStream[] mediaStreams) {
-                                    }
+@Override
+public void onAddTrack(
+        org.webrtc.RtpReceiver receiver,
+        org.webrtc.MediaStream[] mediaStreams) {
+
+    org.webrtc.MediaStreamTrack track =
+            receiver.track();
+
+    if (track instanceof VideoTrack) {
+
+        VideoTrack remoteVideoTrack =
+                (VideoTrack) track;
+
+        runOnUiThread(() ->
+                remoteVideoTrack.addSink(remoteView)
+        );
+    }
+}
 
                                     @Override
                                     public void onConnectionChange(
@@ -383,6 +441,7 @@ isCaller = intent.getBooleanExtra("isCaller", false);
         if (localVideoTrack != null) {
             peerConnection.addTrack(localVideoTrack);
         }
+listenForRemoteCandidates();
     }
 
     private void toggleMute() {
@@ -411,6 +470,341 @@ isCaller = intent.getBooleanExtra("isCaller", false);
         }
     }
 
+private void createOffer() {
+
+    if (peerConnection == null) {
+        return;
+    }
+
+    MediaConstraints constraints =
+            new MediaConstraints();
+
+    peerConnection.createOffer(
+            new SdpObserver() {
+
+                @Override
+                public void onCreateSuccess(
+                        SessionDescription sessionDescription) {
+
+                    peerConnection.setLocalDescription(
+                            new SdpObserver() {
+
+                                @Override
+                                public void onCreateSuccess(
+                                        SessionDescription sdp) {
+                                }
+
+                                @Override
+                                public void onSetSuccess() {
+
+                                    Map<String, Object> offer =
+                                            new HashMap<>();
+
+                                    offer.put(
+                                            "type",
+                                            "offer"
+                                    );
+
+                                    offer.put(
+                                            "sdp",
+                                            sdp.description
+                                    );
+
+                                    firestore
+                                            .collection("calls")
+                                            .document(callId)
+                                            .set(offer);
+                                }
+
+                                @Override
+                                public void onCreateFailure(
+                                        String error) {
+                                }
+
+                                @Override
+                                public void onSetFailure(
+                                        String error) {
+                                }
+                            },
+                            sessionDescription
+                    );
+                }
+
+                @Override
+                public void onSetSuccess() {
+                }
+
+                @Override
+                public void onCreateFailure(
+                        String error) {
+
+                    runOnUiThread(() ->
+                            Toast.makeText(
+                                    CallActivity.this,
+                                    "Offer create failed",
+                                    Toast.LENGTH_LONG
+                            ).show()
+                    );
+                }
+
+                @Override
+                public void onSetFailure(
+                        String error) {
+                }
+            },
+            constraints
+    );
+}
+
+private void createAnswer() {
+
+    if (peerConnection == null) {
+        return;
+    }
+
+    MediaConstraints constraints =
+            new MediaConstraints();
+
+    peerConnection.createAnswer(
+            new SdpObserver() {
+
+                @Override
+                public void onCreateSuccess(
+                        SessionDescription answer) {
+
+                    peerConnection.setLocalDescription(
+                            new SdpObserver() {
+
+                                @Override
+                                public void onCreateSuccess(
+                                        SessionDescription sdp) {
+                                }
+
+                                @Override
+                                public void onSetSuccess() {
+
+                                    Map<String, Object> answerData =
+                                            new HashMap<>();
+
+                                    answerData.put(
+                                            "type",
+                                            "answer"
+                                    );
+
+                                    answerData.put(
+                                            "sdp",
+                                            sdp.description
+                                    );
+
+                                    firestore
+                                            .collection("calls")
+                                            .document(callId)
+                                            .update(answerData);
+                                }
+
+                                @Override
+                                public void onCreateFailure(
+                                        String error) {
+                                }
+
+                                @Override
+                                public void onSetFailure(
+                                        String error) {
+                                }
+                            },
+                            answer
+                    );
+                }
+
+                @Override
+                public void onSetSuccess() {
+                }
+
+                @Override
+                public void onCreateFailure(
+                        String error) {
+
+                    runOnUiThread(() ->
+                            Toast.makeText(
+                                    CallActivity.this,
+                                    "Answer create failed",
+                                    Toast.LENGTH_LONG
+                            ).show()
+                    );
+                }
+
+                @Override
+                public void onSetFailure(
+                        String error) {
+                }
+            },
+            constraints
+    );
+}
+
+private void listenForAnswer() {
+
+    firestore
+            .collection("calls")
+            .document(callId)
+            .addSnapshotListener((document, error) -> {
+
+                if (!isCaller ||
+                        error != null ||
+                        document == null ||
+                        !document.exists()) {
+                    return;
+                }
+
+                String answerSdp =
+                        document.getString("sdp");
+
+                String type =
+                        document.getString("type");
+
+                if (answerSdp == null ||
+                        !"answer".equals(type)) {
+                    return;
+                }
+
+                SessionDescription answer =
+                        new SessionDescription(
+                                SessionDescription.Type.ANSWER,
+                                answerSdp
+                        );
+
+                peerConnection.setRemoteDescription(
+                        new SdpObserver() {
+
+                            @Override
+                            public void onSetSuccess() {
+                            }
+
+                            @Override
+                            public void onCreateSuccess(
+                                    SessionDescription sdp) {
+                            }
+
+                            @Override
+                            public void onCreateFailure(
+                                    String error) {
+                            }
+
+                            @Override
+                            public void onSetFailure(
+                                    String error) {
+                            }
+                        },
+                        answer
+                );
+            });
+}
+
+private void listenForOffer() {
+
+    firestore
+            .collection("calls")
+            .document(callId)
+            .addSnapshotListener((document, error) -> {
+
+                if (error != null ||
+                        document == null ||
+                        !document.exists()) {
+                    return;
+                }
+
+                String offerSdp =
+                        document.getString("sdp");
+
+                String type =
+                        document.getString("type");
+
+                if (offerSdp == null ||
+                        !"offer".equals(type)) {
+                    return;
+                }
+
+                SessionDescription offer =
+                        new SessionDescription(
+                                SessionDescription.Type.OFFER,
+                                offerSdp
+                        );
+
+                peerConnection.setRemoteDescription(
+                        new SdpObserver() {
+
+                            @Override
+                            public void onSetSuccess() {
+                                createAnswer();
+                            }
+
+                            @Override
+                            public void onCreateSuccess(
+                                    SessionDescription sdp) {
+                            }
+
+                            @Override
+                            public void onCreateFailure(
+                                    String error) {
+                            }
+
+                            @Override
+                            public void onSetFailure(
+                                    String error) {
+                            }
+                        },
+                        offer
+                );
+            });
+}
+private void listenForRemoteCandidates() {
+
+    String collection =
+            isCaller
+                    ? "calleeCandidates"
+                    : "callerCandidates";
+
+    firestore
+            .collection("calls")
+            .document(callId)
+            .collection(collection)
+            .addSnapshotListener((snapshots, error) -> {
+
+                if (error != null || snapshots == null) {
+                    return;
+                }
+
+                for (DocumentSnapshot document :
+                        snapshots.getDocuments()) {
+
+                    String candidateSdp =
+                            document.getString("candidate");
+
+                    String sdpMid =
+                            document.getString("sdpMid");
+
+                    Long sdpMLineIndex =
+                            document.getLong("sdpMLineIndex");
+
+                    if (candidateSdp == null ||
+                            sdpMid == null ||
+                            sdpMLineIndex == null) {
+                        continue;
+                    }
+
+                    org.webrtc.IceCandidate candidate =
+                            new org.webrtc.IceCandidate(
+                                    sdpMid,
+                                    sdpMLineIndex.intValue(),
+                                    candidateSdp
+                            );
+
+                    if (peerConnection != null) {
+                        peerConnection.addIceCandidate(candidate);
+                    }
+                }
+            });
+}
     private void stopCall() {
 
         try {
