@@ -1,5 +1,6 @@
 package com.safaul.privatevideocall;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -11,8 +12,8 @@ import androidx.activity.ComponentActivity;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 
 import java.security.SecureRandom;
 import java.util.HashMap;
@@ -30,6 +31,8 @@ public class MainActivity extends ComponentActivity {
 
     private String myPairingCode;
     private String myUid;
+
+    private ListenerRegistration pairingListener;
 
     private static final String CHARACTERS =
             "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -50,13 +53,12 @@ public class MainActivity extends ComponentActivity {
 
         setupFirebaseLogin();
 
-startCallButton.setOnClickListener(v -> {
-
-    claimPairingCode();
-
-});
+        startCallButton.setOnClickListener(v -> {
+            claimPairingCode();
+        });
 
         endCallButton.setOnClickListener(v -> {
+
             endCallButton.setVisibility(View.GONE);
             startCallButton.setVisibility(View.VISIBLE);
 
@@ -73,8 +75,11 @@ startCallButton.setOnClickListener(v -> {
         FirebaseUser currentUser = auth.getCurrentUser();
 
         if (currentUser != null) {
+
             myUid = currentUser.getUid();
+
             createOrLoadPairingCode();
+
             return;
         }
 
@@ -83,10 +88,13 @@ startCallButton.setOnClickListener(v -> {
 
                     if (task.isSuccessful()) {
 
-                        FirebaseUser user = auth.getCurrentUser();
+                        FirebaseUser user =
+                                auth.getCurrentUser();
 
                         if (user != null) {
+
                             myUid = user.getUid();
+
                             createOrLoadPairingCode();
                         }
 
@@ -107,10 +115,18 @@ startCallButton.setOnClickListener(v -> {
 
         callIdValue.setText(myPairingCode);
 
-        Map<String, Object> data = new HashMap<>();
+        Map<String, Object> data =
+                new HashMap<>();
 
-        data.put("ownerUid", myUid);
-        data.put("createdAt", System.currentTimeMillis());
+        data.put(
+                "ownerUid",
+                myUid
+        );
+
+        data.put(
+                "createdAt",
+                System.currentTimeMillis()
+        );
 
         firestore
                 .collection("pairingCodes")
@@ -124,6 +140,8 @@ startCallButton.setOnClickListener(v -> {
                             Toast.LENGTH_SHORT
                     ).show();
 
+                    listenForPairing();
+
                 })
                 .addOnFailureListener(e -> {
 
@@ -135,10 +153,83 @@ startCallButton.setOnClickListener(v -> {
                 });
     }
 
+    private void listenForPairing() {
+
+        if (pairingListener != null) {
+            pairingListener.remove();
+            pairingListener = null;
+        }
+
+        if (myPairingCode == null ||
+                myUid == null) {
+            return;
+        }
+
+        pairingListener =
+                firestore
+                        .collection("pairingCodes")
+                        .document(myPairingCode)
+                        .addSnapshotListener(
+                                (document, error) -> {
+
+            if (error != null ||
+                    document == null ||
+                    !document.exists()) {
+                return;
+            }
+
+            String partnerUid =
+                    document.getString("partnerUid");
+
+            if (partnerUid == null ||
+                    partnerUid.equals(myUid)) {
+                return;
+            }
+
+            String pairId;
+
+            if (myUid.compareTo(partnerUid) < 0) {
+
+                pairId =
+                        myUid + "_" + partnerUid;
+
+            } else {
+
+                pairId =
+                        partnerUid + "_" + myUid;
+            }
+
+            if (pairingListener != null) {
+
+                pairingListener.remove();
+                pairingListener = null;
+            }
+
+            Intent intent =
+                    new Intent(
+                            MainActivity.this,
+                            CallActivity.class
+                    );
+
+            intent.putExtra(
+                    "pairId",
+                    pairId
+            );
+
+            intent.putExtra(
+                    "isCaller",
+                    false
+            );
+
+            startActivity(intent);
+        });
+    }
+
     private void claimPairingCode() {
 
         String partnerCode =
-                partnerCallId.getText()
+                partnerCallId
+                        .getText()
                         .toString()
                         .trim()
                         .toUpperCase();
@@ -234,7 +325,8 @@ startCallButton.setOnClickListener(v -> {
 
                                 Toast.makeText(
                                         this,
-                                        "Pairing failed",
+                                        "Pairing failed: "
+                                                + e.getMessage(),
                                         Toast.LENGTH_LONG
                                 ).show();
                             });
@@ -245,7 +337,8 @@ startCallButton.setOnClickListener(v -> {
 
                     Toast.makeText(
                             this,
-                            "Code check failed",
+                            "Code check failed: "
+                                    + e.getMessage(),
                             Toast.LENGTH_LONG
                     ).show();
                 });
@@ -259,17 +352,34 @@ startCallButton.setOnClickListener(v -> {
         String pairId;
 
         if (myUid.compareTo(ownerUid) < 0) {
-            pairId = myUid + "_" + ownerUid;
+
+            pairId =
+                    myUid + "_" + ownerUid;
+
         } else {
-            pairId = ownerUid + "_" + myUid;
+
+            pairId =
+                    ownerUid + "_" + myUid;
         }
 
         Map<String, Object> pairData =
                 new HashMap<>();
 
-        pairData.put("ownerUid", ownerUid);
-        pairData.put("partnerUid", myUid);
-        pairData.put("pairingCode", pairingCode);
+        pairData.put(
+                "ownerUid",
+                ownerUid
+        );
+
+        pairData.put(
+                "partnerUid",
+                myUid
+        );
+
+        pairData.put(
+                "pairingCode",
+                pairingCode
+        );
+
         pairData.put(
                 "createdAt",
                 System.currentTimeMillis()
@@ -283,7 +393,9 @@ startCallButton.setOnClickListener(v -> {
 
                     startCallButton.setEnabled(true);
 
-                    startCallButton.setText("Paired ✓");
+                    startCallButton.setText(
+                            "Paired ✓"
+                    );
 
                     Toast.makeText(
                             this,
@@ -291,18 +403,23 @@ startCallButton.setOnClickListener(v -> {
                             Toast.LENGTH_LONG
                     ).show();
 
+                    Intent intent =
+                            new Intent(
+                                    MainActivity.this,
+                                    CallActivity.class
+                            );
 
-android.content.Intent intent =
-        new android.content.Intent(
-                MainActivity.this,
-                CallActivity.class
-        );
+                    intent.putExtra(
+                            "pairId",
+                            pairId
+                    );
 
-intent.putExtra("pairId", pairId);
-intent.putExtra("isCaller", false);
+                    intent.putExtra(
+                            "isCaller",
+                            true
+                    );
 
-startActivity(intent);
-
+                    startActivity(intent);
                 })
                 .addOnFailureListener(e -> {
 
@@ -310,7 +427,8 @@ startActivity(intent);
 
                     Toast.makeText(
                             this,
-                            "Pair document failed",
+                            "Pair document failed: "
+                                    + e.getMessage(),
                             Toast.LENGTH_LONG
                     ).show();
                 });
@@ -337,5 +455,17 @@ startActivity(intent);
         }
 
         return code.toString();
+    }
+
+    @Override
+    protected void onDestroy() {
+
+        if (pairingListener != null) {
+
+            pairingListener.remove();
+            pairingListener = null;
+        }
+
+        super.onDestroy();
     }
 }
