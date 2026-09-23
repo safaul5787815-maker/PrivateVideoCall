@@ -507,7 +507,7 @@ private void createOffer() {
 
                                     offer.put(
                                             "sdp",
-                                            sdp.description
+                                            sessionDescription.description
                                     );
 
                                     firestore
@@ -593,7 +593,7 @@ private void createAnswer() {
 
                                     answerData.put(
                                             "sdp",
-                                            sdp.description
+                                            answer.description
                                     );
 
                                     firestore
