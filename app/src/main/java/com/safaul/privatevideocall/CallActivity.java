@@ -569,9 +569,8 @@ public class CallActivity extends ComponentActivity {
                             }
 
 
-                            @Override
-                        }
-                );
+                          }
+                  );
 
 
         if (peerConnection == null) {
