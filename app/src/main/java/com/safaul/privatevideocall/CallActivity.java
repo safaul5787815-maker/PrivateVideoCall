@@ -570,10 +570,6 @@ public class CallActivity extends ComponentActivity {
 
 
                             @Override
-                            public void onIceConnectionReceivingChange(
-                                    boolean receiving
-                            ) {
-                            }
                         }
                 );
 
